@@ -12,6 +12,7 @@ import { TxLink } from "@/components/tx-link";
 import { SettlementConfirmation } from "@/components/settle/settlement-confirmation";
 import { MemoBadge } from "@/components/stellar/MemoBadge";
 import { PaymentQRCode } from "@/components/ui/PaymentQRCode";
+import { cn } from "@/lib/utils";
 import { api, ApiRequestError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { connectWallet, signXdr, WalletError, WalletErrorCode, NotInstalledMessage } from "@/lib/stellar";
