@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Loader2, Lock, PenLine, Plug, RefreshCcw, Send, ShieldX, Wallet } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Lock, PenLine, Plug, QrCode, RefreshCcw, Send, ShieldX, Wallet } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -11,6 +11,7 @@ import { AssetBadge } from "@/components/asset-badge";
 import { TxLink } from "@/components/tx-link";
 import { SettlementConfirmation } from "@/components/settle/settlement-confirmation";
 import { MemoBadge } from "@/components/stellar/MemoBadge";
+import { PaymentQRCode } from "@/components/ui/PaymentQRCode";
 import { api, ApiRequestError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { connectWallet, signXdr, WalletError, WalletErrorCode, NotInstalledMessage } from "@/lib/stellar";
@@ -202,6 +203,7 @@ export function SettleDialog({
 
   const isBulk = !!bulkTarget;
   const active = isBulk ? bulkTarget : target;
+  const [settleMethod, setSettleMethod] = useState<"wallet" | "qr">("wallet");
   const [editedMemo, setEditedMemo] = useState<string | null>(null);
   const [trustlineModalOpen, setTrustlineModalOpen] = useState(false);
   const [trustlinesReady, setTrustlinesReady] = useState(false);
@@ -239,7 +241,7 @@ export function SettleDialog({
     onClose();
     // reset after the close animation
     setTimeout(() => {
-      setStep("review"); setTxHash(null); setMemo(null); setError(""); setErrorCode(null); setSettlementId(null); setAttempts(0); setReconnecting(false);
+      setStep("review"); setTxHash(null); setMemo(null); setError(""); setErrorCode(null); setSettlementId(null); setAttempts(0); setReconnecting(false); setSettleMethod("wallet");
     }, 200);
   }
 
@@ -358,6 +360,34 @@ export function SettleDialog({
     <div className="space-y-5">
       <div className="rounded-2xl border-3 border-ink bg-paper p-5"><div className="flex items-center justify-between"><span className="font-display text-xs uppercase tracking-widest text-ink/50">Paying</span><AssetBadge code={active.assetCode} /></div><div className="mt-3 flex items-center gap-3"><Avatar user={active.to} size="lg" /><div><p className="font-display text-lg uppercase tracking-tight">{active.to.displayName}</p><Money value={active.amount} assetCode={active.assetCode} className="text-2xl" /></div></div></div>
       {step === "review" && (
+        <div className="flex rounded-xl border-2 border-ink bg-paper p-1">
+          <button
+            type="button"
+            onClick={() => setSettleMethod("wallet")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 font-display text-xs uppercase tracking-wider transition-all",
+              settleMethod === "wallet"
+                ? "border-2 border-ink bg-grape font-bold text-white shadow-brutal-sm"
+                : "text-ink/70 hover:text-ink"
+            )}
+          >
+            <Wallet className="h-4 w-4" /> Browser Wallet
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettleMethod("qr")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 font-display text-xs uppercase tracking-wider transition-all",
+              settleMethod === "qr"
+                ? "border-2 border-ink bg-grape font-bold text-white shadow-brutal-sm"
+                : "text-ink/70 hover:text-ink"
+            )}
+          >
+            <QrCode className="h-4 w-4" /> Scan QR
+          </button>
+        </div>
+      )}
+      {step === "review" && settleMethod === "wallet" && (
         <>
           <MemoPreview
             memo={previewMemo}
@@ -378,7 +408,22 @@ export function SettleDialog({
               assetIssuer={trustlineAsset.issuer}
               onSetupTrustline={() => setTrustlineModalOpen(true)}
             />
-          )}<ol className="space-y-2 text-sm text-ink/70"><StepLine icon={<Wallet className="h-4 w-4" />}>Mergepay builds the payment — your keys never leave your wallet.</StepLine><StepLine icon={<PenLine className="h-4 w-4" />}>You sign it in Freighter.</StepLine><StepLine icon={<Send className="h-4 w-4" />}>It settles on Stellar and the ledger updates with the tx hash.</StepLine></ol><FeeEstimatorWidget operationCount={isBulk && bulkTarget ? bulkTarget.expenseIds.length + 1 : 1} amount={active.amount} assetCode={active.assetCode} /><WalletPrerequisiteNotice status={wallet} onRefresh={refreshWallet} /><div className="flex justify-end gap-2"><Button variant="ghost" onClick={close}>Cancel</Button><Button onClick={() => run()} disabled={!wallet.canSign || walletDisconnected} title={walletDisconnected ? "Reconnect your wallet to settle" : wallet.canSign ? undefined : wallet.message}><Wallet className="h-4 w-4" /> Settle now</Button></div></>)}
+          )}<ol className="space-y-2 text-sm text-ink/70"><StepLine icon={<Wallet className="h-4 w-4" />}>Mergepay builds the payment — your keys never leave your wallet.</StepLine><StepLine icon={<PenLine className="h-4 w-4" />}>You sign it in Freighter.</StepLine><StepLine icon={<Send className="h-4 w-4" />}>It settles on Stellar and the ledger updates with the tx hash.</StepLine></ol><FeeEstimatorWidget operationCount={isBulk && bulkTarget ? bulkTarget.expenseIds.length + 1 : 1} amount={active.amount} assetCode={active.assetCode} /><WalletPrerequisiteNotice status={wallet} onRefresh={refreshWallet} /><div className="flex justify-end gap-2"><Button variant="ghost" onClick={close}>Cancel</Button><Button onClick={() => run()} disabled={!wallet.canSign || walletDisconnected} title={walletDisconnected ? "Reconnect your wallet to settle" : wallet.canSign ? undefined : wallet.message}><Wallet className="h-4 w-4" /> Settle now</Button></div></>
+      )}
+      {step === "review" && settleMethod === "qr" && (
+        <div className="space-y-4">
+          <PaymentQRCode
+            address={active.to.stellarPublicKey}
+            amount={active.amount}
+            memo={editedMemo ?? previewMemo}
+            assetCode={active.assetCode}
+            assetIssuer={active.assetIssuer}
+          />
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={close}>Close</Button>
+          </div>
+        </div>
+      )}
 
       {step === "submitting" && <div className="flex flex-col items-center gap-3 py-4" aria-busy aria-live="polite"><Button loading variant="outline" className="pointer-events-none">Submitting to Stellar…</Button><p className="text-center text-sm text-ink/60">Approve the transaction in your Freighter wallet, and we'll record it on the ledger.</p></div>}
       {step === "submitted" && !statusQuery.pollingStalled && <div className="flex flex-col items-center gap-3 rounded-2xl border-3 border-ink bg-butter-pale px-4 py-5" role="status" aria-live="polite"><Loader2 className="h-7 w-7 animate-spin text-grape" /><p className="font-display text-sm uppercase tracking-tight">Waiting for confirmation</p><p className="text-center text-xs text-ink/60">Polling the network for the terminal transaction state. Keep this dialog open until the result is known.</p></div>}
