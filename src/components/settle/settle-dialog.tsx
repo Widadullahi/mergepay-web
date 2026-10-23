@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Clock, Loader2, Lock, PenLine, Plug, RefreshCcw, Send, ShieldX, Wallet } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Loader2, Lock, PenLine, Plug, QrCode, RefreshCcw, Send, ShieldX, Wallet } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { TxProgress, TxStatusPanel } from "@/components/ui/tx-progress";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { AssetBadge } from "@/components/asset-badge";
 import { TxLink } from "@/components/tx-link";
 import { SettlementConfirmation } from "@/components/settle/settlement-confirmation";
 import { MemoBadge } from "@/components/stellar/MemoBadge";
+import { PaymentQRCode } from "@/components/ui/PaymentQRCode";
+import { cn } from "@/lib/utils";
 import { api, ApiRequestError } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { connectWallet, signXdr, WalletError, WalletErrorCode, NotInstalledMessage } from "@/lib/stellar";
@@ -234,6 +236,7 @@ export function SettleDialog({
 
   const isBulk = !!bulkTarget;
   const active = isBulk ? bulkTarget : target;
+  const [settleMethod, setSettleMethod] = useState<"wallet" | "qr">("wallet");
   const [editedMemo, setEditedMemo] = useState<string | null>(null);
   const [trustlineModalOpen, setTrustlineModalOpen] = useState(false);
   const [trustlinesReady, setTrustlinesReady] = useState(false);
@@ -271,7 +274,7 @@ export function SettleDialog({
     onClose();
     // reset after the close animation
     setTimeout(() => {
-      setStep("review"); setTxHash(null); setMemo(null); setError(""); setErrorCode(null); setSettlementId(null); setAttempts(0); setReconnecting(false); setFailedAt(FAILED_AT_SIGNING);
+      setStep("review"); setTxHash(null); setMemo(null); setError(""); setErrorCode(null); setSettlementId(null); setAttempts(0); setReconnecting(false); setFailedAt(FAILED_AT_SIGNING); setSettleMethod("wallet");
     }, 200);
   }
 
@@ -427,6 +430,34 @@ export function SettleDialog({
         />
       )}
       {step === "review" && (
+        <div className="flex rounded-xl border-2 border-ink bg-paper p-1">
+          <button
+            type="button"
+            onClick={() => setSettleMethod("wallet")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 font-display text-xs uppercase tracking-wider transition-all",
+              settleMethod === "wallet"
+                ? "border-2 border-ink bg-grape font-bold text-white shadow-brutal-sm"
+                : "text-ink/70 hover:text-ink"
+            )}
+          >
+            <Wallet className="h-4 w-4" /> Browser Wallet
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettleMethod("qr")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 font-display text-xs uppercase tracking-wider transition-all",
+              settleMethod === "qr"
+                ? "border-2 border-ink bg-grape font-bold text-white shadow-brutal-sm"
+                : "text-ink/70 hover:text-ink"
+            )}
+          >
+            <QrCode className="h-4 w-4" /> Scan QR
+          </button>
+        </div>
+      )}
+      {step === "review" && settleMethod === "wallet" && (
         <>
           <MemoPreview
             memo={previewMemo}
@@ -447,7 +478,22 @@ export function SettleDialog({
               assetIssuer={trustlineAsset.issuer}
               onSetupTrustline={() => setTrustlineModalOpen(true)}
             />
-          )}<ol className="space-y-2 text-sm text-ink/70"><StepLine icon={<Wallet className="h-4 w-4" />}>Mergepay builds the payment — your keys never leave your wallet.</StepLine><StepLine icon={<PenLine className="h-4 w-4" />}>You sign it in Freighter.</StepLine><StepLine icon={<Send className="h-4 w-4" />}>It settles on Stellar and the ledger updates with the tx hash.</StepLine></ol><FeeEstimatorWidget operationCount={isBulk && bulkTarget ? bulkTarget.expenseIds.length + 1 : 1} amount={active.amount} assetCode={active.assetCode} /><WalletPrerequisiteNotice status={wallet} onRefresh={refreshWallet} /><div className="flex justify-end gap-2"><Button variant="ghost" onClick={close}>Cancel</Button><Button onClick={() => run()} disabled={!wallet.canSign || walletDisconnected} title={walletDisconnected ? "Reconnect your wallet to settle" : wallet.canSign ? undefined : wallet.message}><Wallet className="h-4 w-4" /> Settle now</Button></div></>)}
+          )}<ol className="space-y-2 text-sm text-ink/70"><StepLine icon={<Wallet className="h-4 w-4" />}>Mergepay builds the payment — your keys never leave your wallet.</StepLine><StepLine icon={<PenLine className="h-4 w-4" />}>You sign it in Freighter.</StepLine><StepLine icon={<Send className="h-4 w-4" />}>It settles on Stellar and the ledger updates with the tx hash.</StepLine></ol><FeeEstimatorWidget operationCount={isBulk && bulkTarget ? bulkTarget.expenseIds.length + 1 : 1} amount={active.amount} assetCode={active.assetCode} /><WalletPrerequisiteNotice status={wallet} onRefresh={refreshWallet} /><div className="flex justify-end gap-2"><Button variant="ghost" onClick={close}>Cancel</Button><Button onClick={() => run()} disabled={!wallet.canSign || walletDisconnected} title={walletDisconnected ? "Reconnect your wallet to settle" : wallet.canSign ? undefined : wallet.message}><Wallet className="h-4 w-4" /> Settle now</Button></div></>
+      )}
+      {step === "review" && settleMethod === "qr" && (
+        <div className="space-y-4">
+          <PaymentQRCode
+            address={active.to.stellarPublicKey}
+            amount={active.amount}
+            memo={editedMemo ?? previewMemo}
+            assetCode={active.assetCode}
+            assetIssuer={active.assetIssuer}
+          />
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={close}>Close</Button>
+          </div>
+        </div>
+      )}
 
       {step === "submitting" && (
         <TxStatusPanel

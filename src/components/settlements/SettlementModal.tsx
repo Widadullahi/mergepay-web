@@ -30,6 +30,7 @@ import {
   Clock,
   Loader2,
   PenLine,
+  QrCode,
   RefreshCcw,
   Send,
   ShieldCheck,
@@ -44,6 +45,7 @@ import { Money } from "@/components/amount";
 import { AssetBadge } from "@/components/asset-badge";
 import { TxLink } from "@/components/tx-link";
 import { MemoBadge } from "@/components/stellar/MemoBadge";
+import { PaymentQRCode } from "@/components/ui/PaymentQRCode";
 import { WalletPrerequisiteNotice } from "@/components/wallet/wallet-status";
 import { TrustlineBanner } from "@/components/wallet/TrustlineBanner";
 import { useWalletStatus } from "@/hooks/useWalletStatus";
@@ -111,6 +113,7 @@ export function SettlementModal({ open, onClose, groupId, target, onSettled, tim
   const reduceMotion = useReducedMotion();
 
   const [step, setStep] = useState<SettlementModalStep>("review");
+  const [settleMethod, setSettleMethod] = useState<"wallet" | "qr">("wallet");
   const [signPhase, setSignPhase] = useState<SignPhase>("preparing");
   const [submitPhase, setSubmitPhase] = useState<SubmitPhase>("sending");
   const [failedAt, setFailedAt] = useState<Exclude<SettlementModalStep, "error">>("review");
@@ -139,6 +142,7 @@ export function SettlementModal({ open, onClose, groupId, target, onSettled, tim
     cancelInFlight();
     const timer = setTimeout(() => {
       setStep("review");
+      setSettleMethod("wallet");
       setError(null);
       setExpectedMemo(null);
       setSettlementId(null);
@@ -329,28 +333,74 @@ export function SettlementModal({ open, onClose, groupId, target, onSettled, tim
             {step === "review" && (
               <div className="space-y-4">
                 <RecipientCard target={target} />
-                <ul className="space-y-2 text-sm text-ink/70">
-                  <Bullet icon={<ShieldCheck className="h-4 w-4" />}>
-                    Mergepay builds the payment with an <span className="font-mono">MP:</span> memo, and we check the
-                    recipient, amount and memo before your wallet opens.
-                  </Bullet>
-                  <Bullet icon={<PenLine className="h-4 w-4" />}>You approve it in Freighter — your keys never leave the wallet.</Bullet>
-                  <Bullet icon={<Send className="h-4 w-4" />}>It settles on Stellar and the debt is marked paid once the memo is confirmed.</Bullet>
-                </ul>
-                <WalletPrerequisiteNotice status={wallet} onRefresh={refreshWallet} />
-                {target.assetCode !== "XLM" && target.assetIssuer && (
-                  <TrustlineBanner
-                    asset={{ code: target.assetCode, issuer: target.assetIssuer }}
-                  />
-                )}
-                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                  <Button variant="ghost" onClick={close}>
-                    Cancel
-                  </Button>
-                  <Button onClick={run} disabled={!wallet.canSign} title={wallet.canSign ? undefined : wallet.message}>
-                    <Wallet className="h-4 w-4" /> Confirm & sign
-                  </Button>
+                <div className="flex rounded-xl border-2 border-ink bg-paper p-1">
+                  <button
+                    type="button"
+                    onClick={() => setSettleMethod("wallet")}
+                    className={cn(
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 font-display text-xs uppercase tracking-wider transition-all",
+                      settleMethod === "wallet"
+                        ? "border-2 border-ink bg-grape font-bold text-white shadow-brutal-sm"
+                        : "text-ink/70 hover:text-ink"
+                    )}
+                  >
+                    <Wallet className="h-4 w-4" /> Browser Wallet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSettleMethod("qr")}
+                    className={cn(
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 font-display text-xs uppercase tracking-wider transition-all",
+                      settleMethod === "qr"
+                        ? "border-2 border-ink bg-grape font-bold text-white shadow-brutal-sm"
+                        : "text-ink/70 hover:text-ink"
+                    )}
+                  >
+                    <QrCode className="h-4 w-4" /> Scan QR
+                  </button>
                 </div>
+
+                {settleMethod === "wallet" ? (
+                  <>
+                    <ul className="space-y-2 text-sm text-ink/70">
+                      <Bullet icon={<ShieldCheck className="h-4 w-4" />}>
+                        Mergepay builds the payment with an <span className="font-mono">MP:</span> memo, and we check the
+                        recipient, amount and memo before your wallet opens.
+                      </Bullet>
+                      <Bullet icon={<PenLine className="h-4 w-4" />}>You approve it in Freighter — your keys never leave the wallet.</Bullet>
+                      <Bullet icon={<Send className="h-4 w-4" />}>It settles on Stellar and the debt is marked paid once the memo is confirmed.</Bullet>
+                    </ul>
+                    <WalletPrerequisiteNotice status={wallet} onRefresh={refreshWallet} />
+                    {target.assetCode !== "XLM" && target.assetIssuer && (
+                      <TrustlineBanner
+                        asset={{ code: target.assetCode, issuer: target.assetIssuer }}
+                      />
+                    )}
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                      <Button variant="ghost" onClick={close}>
+                        Cancel
+                      </Button>
+                      <Button onClick={run} disabled={!wallet.canSign} title={wallet.canSign ? undefined : wallet.message}>
+                        <Wallet className="h-4 w-4" /> Confirm & sign
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    <PaymentQRCode
+                      address={target.to.stellarPublicKey}
+                      amount={target.amount}
+                      memo={target.previewMemo}
+                      assetCode={target.assetCode}
+                      assetIssuer={target.assetIssuer}
+                    />
+                    <div className="flex justify-end">
+                      <Button variant="ghost" onClick={close}>
+                        Close
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

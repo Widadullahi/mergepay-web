@@ -363,4 +363,18 @@ describe("SettlementModal", () => {
     await waitFor(() => expect(screen.getByText("Submitting to Stellar")).toBeInTheDocument());
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("switches to QR code payment method and displays payment QR code", async () => {
+    renderModal();
+
+    const qrToggle = screen.getByRole("button", { name: /scan qr/i });
+    expect(qrToggle).toBeInTheDocument();
+
+    fireEvent.click(qrToggle);
+
+    expect(screen.getByTestId("payment-qr-container")).toBeInTheDocument();
+    expect(screen.getByText(/Scan with any Stellar mobile wallet/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /copy payment uri to clipboard/i })).toBeInTheDocument();
+  });
 });
+
